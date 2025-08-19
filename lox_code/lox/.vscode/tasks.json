@@ -1,0 +1,25 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "compile lox",
+            "type": "shell",
+            "command": "javac src/lox/*.java",
+            "problemMatcher": []
+        },
+        {
+            "label": "compile tool",
+            "type": "shell",
+            "command": "javac src/tool/*.java",
+            "problemMatcher": []
+        },
+        {
+            "label": "run genAst",
+            "type": "shell",
+            "command": "",
+            "problemMatcher": []
+        },
+
+
+    ]
+}
