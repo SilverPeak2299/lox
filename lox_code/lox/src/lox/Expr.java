@@ -26,7 +26,7 @@ abstract class Expr {
   static class Grouping extends Expr {
     Grouping(Expr expression) {
       this.expression = expression;
-    }
+    } // test case
 
     @Override
     <R> R accept(Visitor<R> visitor) {
