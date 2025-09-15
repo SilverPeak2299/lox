@@ -1,133 +1,85 @@
 package lox;
 
 import java.util.List;
-import static lox.TokenType.*;
+import java.util.ArrayList;
 
 class Parser {
-  private static class ParseError extends RuntimeException {}
   private final List<Token> tokens;
   private int current = 0;
 
-  Parser(List<Token> tokens) {
-    this.tokens = tokens;
-  }
+  Parser(List<Token> tokens) { this.tokens = tokens; }
 
- Expr parse() {
-    try {
-      return expression();
-    } catch (ParseError error) {
-      return null;
+  Program parse() {
+    List<Stmt> statements = new ArrayList<>();
+    while (!isAtEnd()) {
+      statements.add(statement());
     }
+    return new Program(statements);
   }
 
-  private Expr expression() {
-    return equality();
+  private Stmt statement() {
+    Token name = consume(TokenType.IDENTIFIER, "Expect identifier.");
+    consume(TokenType.EQUAL, "Expect '=' after identifier.");
+    Expr value = expr();
+    consume(TokenType.SEMICOLON, "Expect ';' after statement.");
+    return new Stmt.Assign(name, value);
   }
 
-    private Expr equality() {
-    Expr expr = comparison();
-
-    return expr;
-  }
-
-    private Expr comparison() {
-    Expr expr = term();
-
-    return expr;
-  }
-
-  private Expr term() {
-    Expr expr = factor();
-
-    while (match(PLUS)) {
-      Token operator = previous();
-      Expr right = factor();
-      expr = new Expr.Binary(expr, operator, right);
+  private Expr expr() {
+    if (isWaterflowStart()) return waterflow();
+    Expr left = entity();
+    while (match(TokenType.PLUS)) {
+      Token op = previous();
+      Expr right = entity();
+      left = new Expr.Binary(left, op, right);
     }
-
-    return expr;
+    return left;
   }
 
-    private Expr factor() {
-    Expr expr = unary();
-
-    return expr;
+  private Expr entity() {
+    Token name = consume(TokenType.IDENTIFIER, "Expect identifier.");
+    return new Expr.Variable(name);
   }
 
-    private Expr unary() {
-
-    return primary();
+  private Expr waterflow() {
+    consume(TokenType.LEFT_PAREN, "Expect '('.");
+    Token catchment_area = consume(TokenType.NUMBER, "Expect Catchment Area.");
+    consume(TokenType.COMMA, "Expect ','.");
+    Token rainfall = consume(TokenType.NUMBER, "Expect Rainfall.");
+    consume(TokenType.RIGHT_PAREN, "Expect ')'.");
+    return new Expr.Waterflow((double)catchment_area.literal, (double)rainfall.literal);
   }
 
-    private Expr primary() {
-
-    if (match(NUMBER, STRING)) {
-      return new Expr.Literal(previous().literal);
-    }
-
-    if (match(LEFT_PAREN)) {
-      Expr expr = expression();
-      consume(RIGHT_PAREN, "Expect ')' after expression.");
-      return new Expr.Grouping(expr);
-    }
-
-    throw error(peek(), "Expect expression.");
+  private boolean isWaterflowStart() {
+    if (!check(TokenType.LEFT_PAREN)) return false;
+    return peekType(1) == TokenType.NUMBER && peekType(2) == TokenType.COMMA;
   }
 
-    private boolean match(TokenType... types) {
-    for (TokenType type : types) {
-      if (check(type)) {
-        advance();
-        return true;
-      }
-    }
-
+  // Utility methods
+  private Token consume(TokenType type, String msg) {
+    if (check(type)) return advance();
+    error(peek(), msg); throw new ParseError();
+  }
+  private boolean match(TokenType... types) {
+    for (TokenType t : types) if (check(t)) { advance(); return true; }
     return false;
   }
-
-  private Token consume(TokenType type, String message) {
-    if (check(type)) return advance();
-
-    throw error(peek(), message);
-  }
-
   private boolean check(TokenType type) {
     if (isAtEnd()) return false;
     return peek().type == type;
   }
-
   private Token advance() {
     if (!isAtEnd()) current++;
     return previous();
   }
-
-    private boolean isAtEnd() {
-    return peek().type == EOF;
+  private boolean isAtEnd() { return peek().type == TokenType.EOF; }
+  private Token peek() { return tokens.get(current); }
+  private Token previous() { return tokens.get(current - 1); }
+  private TokenType peekType(int ahead) {
+    int idx = current + ahead;
+    if (idx >= tokens.size()) return TokenType.EOF;
+    return tokens.get(idx).type;
   }
-
-  private Token peek() {
-    return tokens.get(current);
-  }
-
-  private Token previous() {
-    return tokens.get(current - 1);
-  }
-
-  private ParseError error(Token token, String message) {
-    Lox.error(token, message);
-    return new ParseError();
-  }
-
-    private void synchronize() {
-    advance();
-
-    while (!isAtEnd()) {
-      if (previous().type == SEMICOLON) return;
-
-      switch (peek().type) {
-      }
-
-      advance();
-    }
-  }
+  private void error(Token token, String message) { Lox.error(token, message); }
+  private static class ParseError extends RuntimeException {}
 }

@@ -1,43 +1,33 @@
 package lox;
 
-class AstPrinter implements Expr.Visitor<String> {
-  String print(Expr expr) {
-    return expr.accept(this);
-  }
-
-  @Override
-  public String visitBinaryExpr(Expr.Binary expr) {
-    return parenthesize(expr.operator.lexeme,
-                        expr.left, expr.right);
-  }
-
-  @Override
-  public String visitGroupingExpr(Expr.Grouping expr) {
-    return parenthesize("group", expr.expression);
-  }
-
-  @Override
-  public String visitLiteralExpr(Expr.Literal expr) {
-    if (expr.value == null) return "nil";
-    return expr.value.toString();
-  }
-
-  @Override
-  public String visitUnaryExpr(Expr.Unary expr) {
-    return parenthesize(expr.operator.lexeme, expr.right);
-  }
-
-    private String parenthesize(String name, Expr... exprs) {
-    StringBuilder builder = new StringBuilder();
-
-    builder.append("(").append(name);
-    for (Expr expr : exprs) {
-      builder.append(" ");
-      builder.append(expr.accept(this));
+class AstPrinter implements Expr.Visitor<String>, Stmt.Visitor<String> {
+  String printProgram(Program program) {
+    StringBuilder sb = new StringBuilder();
+    sb.append("(program");
+    for (Stmt s : program.statements) {
+      sb.append("\n  ").append(s.accept(this));
     }
-    builder.append(")");
-
-    return builder.toString();
+    sb.append("\n)");
+    return sb.toString();
   }
 
+  String printStmt(Stmt stmt) { return stmt.accept(this); }
+
+  public String visitAssignStmt(Stmt.Assign stmt) {
+    return stmt.name.lexeme + " = " + stmt.value.accept(this);
+  }
+
+  public String visitVariableExpr(Expr.Variable expr) {
+    return expr.name.lexeme;
+  }
+
+  public String visitBinaryExpr(Expr.Binary expr) {
+    return "(" + expr.operator.lexeme + " " +
+           expr.left.accept(this) + " " +
+           expr.right.accept(this) + ")";
+  }
+
+  public String visitWaterflowExpr(Expr.Waterflow expr) {
+    return "waterflow(" + expr.first + "," + expr.second + ")";
+  }
 }

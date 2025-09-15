@@ -6,7 +6,6 @@ import java.io.InputStreamReader;
 import java.nio.charset.Charset;
 import java.nio.file.Files;
 import java.nio.file.Paths;
-import java.util.List;
 
 public class Lox {
     static boolean hadError = false;
@@ -44,16 +43,21 @@ private static void runPrompt() throws IOException {
   }
 
   private static void run(String source) {
-  Scanner scanner = new Scanner(source);
-    List<Token> tokens = scanner.scanTokens();
-    
-    Parser parser = new Parser(tokens);
-    Expr expression = parser.parse();
+    Scanner scanner = new Scanner(source);
+    java.util.List<Token> tokens = scanner.scanTokens();
 
-    // Stop if there was a syntax error.
+    Parser parser = new Parser(tokens);
+    Program program;
+    try {
+      program = parser.parse();
+    } catch (RuntimeException ex) {
+      if (hadError) return;
+      throw ex;
+    }
     if (hadError) return;
 
-    System.out.println(new AstPrinter().print(expression));
+    AstPrinter printer = new AstPrinter();
+    System.out.println(printer.printProgram(program));
   }
 
     static void error(int line, String message) {

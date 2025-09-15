@@ -45,6 +45,7 @@ public class Scanner {
       case ',': addToken(COMMA); break;
       case '+': addToken(PLUS); break;
       case ';': addToken(SEMICOLON); break;
+      case '=': addToken(EQUAL); break;
 
       case ' ':
       case '\r':
@@ -108,14 +109,6 @@ public class Scanner {
     // Trim the surrounding quotes.
     String value = source.substring(start + 1, current - 1);
     addToken(STRING, value);
-  }
-
-    private boolean match(char expected) {
-    if (isAtEnd()) return false;
-    if (source.charAt(current) != expected) return false;
-
-    current++;
-    return true;
   }
 
     private char peek() {
