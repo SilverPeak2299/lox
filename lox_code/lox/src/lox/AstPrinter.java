@@ -3,12 +3,17 @@ package lox;
 class AstPrinter implements Expr.Visitor<String>, Stmt.Visitor<String> {
   String printProgram(Program program) {
     StringBuilder sb = new StringBuilder();
-    sb.append("(program");
-    for (Stmt s : program.statements) {
-      sb.append("\n  ").append(s.accept(this));
+    sb.append("[");
+    for (int i = 0; i < program.rainfallSeries.size(); i++) {
+      if (i > 0) sb.append(',');
+      double v = program.rainfallSeries.get(i);
+      if (v == Math.rint(v)) sb.append((long) v); else sb.append(v);
     }
-    sb.append("\n)");
-    return sb.toString();
+    sb.append("]\n");
+    for (Stmt s : program.statements) {
+      sb.append(s.accept(this)).append("\n");
+    }
+    return sb.toString().trim();
   }
 
   String printStmt(Stmt stmt) { return stmt.accept(this); }
@@ -22,12 +27,10 @@ class AstPrinter implements Expr.Visitor<String>, Stmt.Visitor<String> {
   }
 
   public String visitBinaryExpr(Expr.Binary expr) {
-    return "(" + expr.operator.lexeme + " " +
-           expr.left.accept(this) + " " +
-           expr.right.accept(this) + ")";
+    return "(+ " + expr.left.accept(this) + " " + expr.right.accept(this) + ")";
   }
 
   public String visitWaterflowExpr(Expr.Waterflow expr) {
-    return "waterflow(" + expr.first + "," + expr.second + ")";
+    return "(waterflow " + expr.area + ")";
   }
 }

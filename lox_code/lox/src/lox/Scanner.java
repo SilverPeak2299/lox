@@ -42,10 +42,21 @@ public class Scanner {
     switch (c) {
       case '(': addToken(LEFT_PAREN); break;
       case ')': addToken(RIGHT_PAREN); break;
+      case '[': addToken(LEFT_BRACKET); break;
+      case ']': addToken(RIGHT_BRACKET); break;
       case ',': addToken(COMMA); break;
       case '+': addToken(PLUS); break;
       case ';': addToken(SEMICOLON); break;
       case '=': addToken(EQUAL); break;
+      case '/':
+        if (match('/')) {
+          // A comment goes until the end of the line.
+          while (peek() != '\n' && !isAtEnd()) advance();
+        } else {
+          // Currently we don't support division token, so treat as error.
+          Lox.error(line, "Unexpected '/'. Use // for comments.");
+        }
+        break;
 
       case ' ':
       case '\r':
@@ -135,6 +146,12 @@ public class Scanner {
     return c >= '0' && c <= '9';
   } 
 
+  private boolean match(char expected) {
+    if (isAtEnd()) return false;
+    if (source.charAt(current) != expected) return false;
+    current++;
+    return true;
+  }
 
   private boolean isAtEnd() {
     return current >= source.length();

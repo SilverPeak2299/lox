@@ -10,11 +10,32 @@ class Parser {
   Parser(List<Token> tokens) { this.tokens = tokens; }
 
   Program parse() {
+    List<Double> rainfall = parseRainfallHeader();
     List<Stmt> statements = new ArrayList<>();
     while (!isAtEnd()) {
       statements.add(statement());
     }
-    return new Program(statements);
+    return new Program(rainfall, statements);
+  }
+
+  private List<Double> parseRainfallHeader() {
+    List<Double> values = new ArrayList<>();
+    consume(TokenType.LEFT_BRACKET, "Program must start with rainfall series '['.");
+    values.add(readRainNumber());
+    while (match(TokenType.COMMA)) {
+      values.add(readRainNumber());
+      if (values.size() > 10) {
+        error(previous(), "Rainfall series may not exceed 10 numbers.");
+        throw new ParseError();
+      }
+    }
+    consume(TokenType.RIGHT_BRACKET, "Expect ']' after rainfall series.");
+    return values;
+  }
+
+  private double readRainNumber() {
+    Token num = consume(TokenType.NUMBER, "Expect number in rainfall series.");
+    return (double) num.literal;
   }
 
   private Stmt statement() {
@@ -26,7 +47,7 @@ class Parser {
   }
 
   private Expr expr() {
-    if (isWaterflowStart()) return waterflow();
+    if (isSingleCatchmentStart()) return waterflow();
     Expr left = entity();
     while (match(TokenType.PLUS)) {
       Token op = previous();
@@ -41,18 +62,17 @@ class Parser {
     return new Expr.Variable(name);
   }
 
+  // waterflow -> '(' NUMBER ')'
   private Expr waterflow() {
     consume(TokenType.LEFT_PAREN, "Expect '('.");
-    Token catchment_area = consume(TokenType.NUMBER, "Expect Catchment Area.");
-    consume(TokenType.COMMA, "Expect ','.");
-    Token rainfall = consume(TokenType.NUMBER, "Expect Rainfall.");
-    consume(TokenType.RIGHT_PAREN, "Expect ')'.");
-    return new Expr.Waterflow((double)catchment_area.literal, (double)rainfall.literal);
+    Token areaTok = consume(TokenType.NUMBER, "Expect catchment area.");
+    consume(TokenType.RIGHT_PAREN, "Expect ')' after area.");
+    return new Expr.Waterflow((double)areaTok.literal);
   }
 
-  private boolean isWaterflowStart() {
+  private boolean isSingleCatchmentStart() {
     if (!check(TokenType.LEFT_PAREN)) return false;
-    return peekType(1) == TokenType.NUMBER && peekType(2) == TokenType.COMMA;
+    return peekType(1) == TokenType.NUMBER && peekType(2) == TokenType.RIGHT_PAREN;
   }
 
   // Utility methods

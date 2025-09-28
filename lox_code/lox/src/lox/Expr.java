@@ -24,10 +24,9 @@ abstract class Expr {
   }
 
   static class Waterflow extends Expr {
-    final double first;
-    final double second;
-    Waterflow(double first, double second) {
-      this.first = first; this.second = second;
+    final double area; // only area now
+    Waterflow(double area) {
+      this.area = area;
     }
     <R> R accept(Visitor<R> v) { return v.visitWaterflowExpr(this); }
   }
