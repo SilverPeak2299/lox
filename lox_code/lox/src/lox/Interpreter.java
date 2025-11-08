@@ -24,6 +24,10 @@ class Interpreter implements Expr.Visitor<double[]>, Stmt.Visitor<Void> {
     for (Stmt statement : program.statements) {
       statement.accept(this);
     }
+    System.out.println("waterflow for river system:");
+    System.out.println("----------------------------");
+    printRiverSystem(program);
+    System.out.println();
     printTables();
   }
 
@@ -255,6 +259,64 @@ class Interpreter implements Expr.Visitor<double[]>, Stmt.Visitor<Void> {
       return d;
     }
     throw new RuntimeError("Operand of '" + operator.lexeme + "' must be a number.");
+  }
+
+  private void printRiverSystem(Program program) {
+    for (Stmt stmt : program.statements) {
+      if (stmt instanceof Stmt.Assign assign) {
+        System.out.println(assign.name.lexeme);
+        printExprTree(assign.value, "", true);
+      }
+    }
+  }
+
+  private void printExprTree(Expr expr, String prefix, boolean isLast) {
+    String branch = isLast ? "└── " : "├── ";
+    System.out.print(prefix + branch);
+    String childPrefix = prefix + (isLast ? "    " : "│   ");
+    if (expr instanceof Expr.Binary binary) {
+      System.out.println("(" + binary.operator.lexeme + ")");
+      printExprTree(binary.left, childPrefix, false);
+      printExprTree(binary.right, childPrefix, true);
+    } else if (expr instanceof Expr.Dam dam) {
+      String initStr = formatDamScalar(dam.init);
+      String capStr = formatDamScalar(dam.cap);
+      System.out.println("dam(" + initStr + ", " + capStr + ")");
+      System.out.println(childPrefix + "└── [rules...]");
+    } else if (expr instanceof Expr.Variable variable) {
+      System.out.println(variable.name.lexeme);
+    } else if (expr instanceof Expr.Waterflow waterflow) {
+      System.out.println("(waterflow area=" + waterflow.area + ")");
+    } else if (expr instanceof Expr.Literal literal) {
+      System.out.println(formatLiteralValue(literal.value));
+    } else {
+      System.out.println(expr.getClass().getSimpleName());
+    }
+  }
+
+  private String formatDamScalar(Expr expr) {
+    if (expr instanceof Expr.Literal literal && literal.value instanceof Double d) {
+      return formatDouble(d);
+    }
+    if (expr instanceof Expr.Variable variable) {
+      return variable.name.lexeme;
+    }
+    return "?";
+  }
+
+  private String formatLiteralValue(Object value) {
+    if (value instanceof Double d) {
+      return formatDouble(d);
+    }
+    return String.valueOf(value);
+  }
+
+  private String formatDouble(double value) {
+    long longValue = (long) value;
+    if (value == longValue) {
+      return String.format(Locale.US, "%d", longValue);
+    }
+    return Double.toString(value);
   }
 
   private void printTables() {
