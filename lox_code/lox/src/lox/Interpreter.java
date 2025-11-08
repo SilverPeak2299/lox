@@ -17,7 +17,32 @@ class Interpreter implements Expr.Visitor<double[]>, Stmt.Visitor<Void> {
   private static final double DECAY_CONSTANT = Math.log(100.0) / 10.0;
   private static final double DECAY_FACTOR = Math.exp(-DECAY_CONSTANT);
 
+  private static class DamRecord {
+    final String name;
+    final double initFill;
+    final double capacity;
+    final double[] inflow;
+    final double[] outflow;
+    final double[] fill;
+
+    DamRecord(
+        String name,
+        double initFill,
+        double capacity,
+        double[] inflow,
+        double[] outflow,
+        double[] fill) {
+      this.name = name;
+      this.initFill = initFill;
+      this.capacity = capacity;
+      this.inflow = inflow;
+      this.outflow = outflow;
+      this.fill = fill;
+    }
+  }
+
   private final Map<String, double[]> values = new LinkedHashMap<>();
+  private final Map<String, DamRecord> damRecords = new LinkedHashMap<>();
   private double[] rainfallSeries;
   private int numberOfDays;
   private String currentAssignment = null;
@@ -25,6 +50,7 @@ class Interpreter implements Expr.Visitor<double[]>, Stmt.Visitor<Void> {
   void interpret(Program program) {
     prepareRainfall(program.rainfallSeries);
     values.clear();
+    damRecords.clear();
     for (Stmt statement : program.statements) {
       statement.accept(this);
     }
@@ -33,6 +59,7 @@ class Interpreter implements Expr.Visitor<double[]>, Stmt.Visitor<Void> {
     printRiverSystem(program);
     System.out.println();
     printTables();
+    printDamDiagnostics();
   }
 
   private void prepareRainfall(List<Double> rainfall) {
@@ -66,10 +93,11 @@ class Interpreter implements Expr.Visitor<double[]>, Stmt.Visitor<Void> {
     if (expr.operator.type == TokenType.PLUS) {
       double[] left = expr.left.accept(this);
       if (expr.right instanceof Expr.Dam damExpr) {
-        double[] damOut = evaluateDamWithInflow(damExpr, left);
+        DamComputation computation = computeDam(damExpr, left);
+        recordDam(currentAssignment, computation);
         double[] result = new double[numberOfDays];
         for (int i = 0; i < numberOfDays; i++) {
-          result[i] = left[i] + damOut[i];
+          result[i] = left[i] + computation.outflow[i];
         }
         return result;
       }
@@ -109,27 +137,64 @@ class Interpreter implements Expr.Visitor<double[]>, Stmt.Visitor<Void> {
     if (inflowSeries == null) {
       inflowSeries = new double[numberOfDays];
     }
-    return evaluateDamWithInflow(expr, inflowSeries);
+    DamComputation computation = computeDam(expr, inflowSeries);
+    recordDam(currentAssignment, computation);
+    return computation.outflow;
   }
 
-  private double[] evaluateDamWithInflow(Expr.Dam damExpr, double[] inflowSeries) {
-    double initialFill = evaluateScalar(damExpr.init);
+  private static class DamComputation {
+    final double initFill;
+    final double capacity;
+    final double[] inflow;
+    final double[] outflow;
+    final double[] fill;
+
+    DamComputation(
+        double initFill, double capacity, double[] inflow, double[] outflow, double[] fill) {
+      this.initFill = initFill;
+      this.capacity = capacity;
+      this.inflow = inflow;
+      this.outflow = outflow;
+      this.fill = fill;
+    }
+  }
+
+  private DamComputation computeDam(Expr.Dam damExpr, double[] inflowSeries) {
+    double initialFill = clamp(evaluateScalar(damExpr.init), 0.0, 1.0);
     double capacity = evaluateScalar(damExpr.cap);
     if (capacity <= 0) {
       throw new RuntimeError("Dam capacity must be greater than zero.");
     }
-    double fill = clamp(initialFill, 0.0, 1.0);
+    double[] inflowCopy = Arrays.copyOf(inflowSeries, numberOfDays);
     double[] outflow = new double[numberOfDays];
+    double[] fillSeries = new double[numberOfDays];
+    double fill = initialFill;
     for (int day = 0; day < numberOfDays; day++) {
-      double inflow = inflowSeries[day];
+      double inflow = inflowCopy[day];
       double rainToday = rainfallSeries[day];
       double multiplier = evaluateDamRules(damExpr.rules, day, fill, inflow, rainToday);
       double out = inflow * multiplier;
       outflow[day] = out;
       double rainContribution = convertRainfallToFlow(rainToday);
       fill = clamp(fill + (inflow + rainContribution - out) / capacity, 0.0, 1.0);
+      fillSeries[day] = fill;
     }
-    return outflow;
+    return new DamComputation(initialFill, capacity, inflowCopy, outflow, fillSeries);
+  }
+
+  private void recordDam(String name, DamComputation computation) {
+    if (name == null) {
+      return;
+    }
+    damRecords.put(
+        name,
+        new DamRecord(
+            name,
+            computation.initFill,
+            computation.capacity,
+            computation.inflow.clone(),
+            computation.outflow.clone(),
+            computation.fill.clone()));
   }
 
   private double evaluateDamRules(Expr.DamRules rules, int day, double fill, double inflow, double rainToday) {
@@ -377,6 +442,37 @@ class Interpreter implements Expr.Visitor<double[]>, Stmt.Visitor<Void> {
     System.out.println(header);
     for (Map.Entry<String, double[]> entry : values.entrySet()) {
       System.out.println(formatRow(entry.getKey(), entry.getValue(), 2));
+    }
+  }
+
+  private void printDamDiagnostics() {
+    if (damRecords.isEmpty()) {
+      return;
+    }
+    System.out.println();
+    System.out.println("Dam diagnostics");
+    System.out.println("---------------");
+    for (DamRecord record : damRecords.values()) {
+      System.out.println(
+          "Dam "
+              + record.name
+              + " (init_fill = "
+              + formatDouble(record.initFill)
+              + ", capacity = "
+              + formatDouble(record.capacity)
+              + ")");
+      System.out.println("      day    inflow    outflow      fill");
+      for (int day = 0; day < numberOfDays; day++) {
+        System.out.println(
+            String.format(
+                Locale.US,
+                "    %4d%10.2f%10.2f%12.2f",
+                day,
+                record.inflow[day],
+                record.outflow[day],
+                record.fill[day]));
+      }
+      System.out.println();
     }
   }
 
