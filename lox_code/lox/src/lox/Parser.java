@@ -47,19 +47,87 @@ class Parser {
   }
 
   private Expr expr() {
-    if (isSingleCatchmentStart()) return waterflow();
-    Expr left = entity();
-    while (match(TokenType.PLUS)) {
-      Token op = previous();
-      Expr right = entity();
-      left = new Expr.Binary(left, op, right);
-    }
-    return left;
+    return comparison();
   }
 
-  private Expr entity() {
-    Token name = consume(TokenType.IDENTIFIER, "Expect identifier.");
-    return new Expr.Variable(name);
+  private Expr comparison() {
+    Expr expr = addition();
+    while (match(TokenType.GREATER)) {
+      Token op = previous();
+      Expr right = addition();
+      expr = new Expr.Binary(expr, op, right);
+    }
+    return expr;
+  }
+
+  private Expr addition() {
+    Expr expr = primary();
+    while (match(TokenType.PLUS)) {
+      Token op = previous();
+      Expr right = primary();
+      expr = new Expr.Binary(expr, op, right);
+    }
+    return expr;
+  }
+
+  private Expr primary() {
+    if (match(TokenType.FALSE)) return new Expr.Literal(false);
+    if (match(TokenType.TRUE)) return new Expr.Literal(true);
+    if (match(TokenType.NIL)) return new Expr.Literal(null);
+
+    if (match(TokenType.NUMBER)) {
+      return new Expr.Literal(previous().literal);
+    }
+    if (match(TokenType.STRING)) {
+      return new Expr.Literal(previous().literal);
+    }
+
+    if (match(TokenType.DAM)) return damExpr();
+
+    if (isWaterflowStart()) return waterflow();
+
+    if (match(TokenType.LEFT_PAREN)) {
+      Expr expr = expr();
+      consume(TokenType.RIGHT_PAREN, "Expect ')' after expression.");
+      return expr;
+    }
+
+    if (match(TokenType.IDENTIFIER)) {
+      return new Expr.Variable(previous());
+    }
+
+    error(peek(), "Expect expression.");
+    throw new ParseError();
+  }
+
+  private Expr damExpr() {
+    consume(TokenType.LEFT_PAREN, "Expect '(' after 'dam'.");
+    Expr init = expr();
+    consume(TokenType.COMMA, "Expect ',' after dam init expression.");
+    Expr cap = expr();
+    consume(TokenType.COMMA, "Expect ',' after dam cap expression.");
+    Expr.DamRules rules = damRules();
+    consume(TokenType.RIGHT_PAREN, "Expect ')' after dam expression.");
+    return new Expr.Dam(init, cap, rules);
+  }
+
+  private Expr.DamRules damRules() {
+    return damIfChain();
+  }
+
+  private Expr.DamRules damIfChain() {
+    if (match(TokenType.IF)) {
+      Expr condition = expr();
+      consume(TokenType.FLOW, "Expect 'flow' after dam if condition.");
+      Expr value = expr();
+      consume(TokenType.ELSE, "Expect 'else' after dam flow value.");
+      Expr.DamRules elseBranch = damIfChain();
+      return new Expr.DamRules.IfFlow(condition, value, elseBranch);
+    }
+
+    consume(TokenType.FLOW, "Expect 'flow' in dam rules.");
+    Expr value = expr();
+    return new Expr.DamRules.Flow(value);
   }
 
   // waterflow -> '(' NUMBER ')'
@@ -70,7 +138,7 @@ class Parser {
     return new Expr.Waterflow((double)areaTok.literal);
   }
 
-  private boolean isSingleCatchmentStart() {
+  private boolean isWaterflowStart() {
     if (!check(TokenType.LEFT_PAREN)) return false;
     return peekType(1) == TokenType.NUMBER && peekType(2) == TokenType.RIGHT_PAREN;
   }

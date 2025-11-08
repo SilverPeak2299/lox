@@ -11,6 +11,13 @@ public class Scanner {
 
   static {
     keywords = new HashMap<>();
+    keywords.put("true", TRUE);
+    keywords.put("false", FALSE);
+    keywords.put("nil", NIL);
+    keywords.put("if", IF);
+    keywords.put("else", ELSE);
+    keywords.put("dam", DAM);
+    keywords.put("flow", FLOW);
   }
 
 
@@ -46,6 +53,7 @@ public class Scanner {
       case ']': addToken(RIGHT_BRACKET); break;
       case ',': addToken(COMMA); break;
       case '+': addToken(PLUS); break;
+      case '>': addToken(GREATER); break;
       case ';': addToken(SEMICOLON); break;
       case '=': addToken(EQUAL); break;
       case '/':
