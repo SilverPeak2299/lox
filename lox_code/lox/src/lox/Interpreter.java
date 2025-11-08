@@ -1,0 +1,283 @@
+package lox;
+
+import java.util.Arrays;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+
+class Interpreter implements Expr.Visitor<double[]>, Stmt.Visitor<Void> {
+
+  private static final int NUMBER_OF_DAYS = 12;
+  private static final double SECONDS_PER_DAY = 86400.0;
+  private static final double DECAY_CONSTANT = Math.log(100.0) / 10.0;
+  private static final double DECAY_FACTOR = Math.exp(-DECAY_CONSTANT);
+
+  private final Map<String, double[]> values = new LinkedHashMap<>();
+  private double[] rainfallSeries;
+  private int numberOfDays;
+  private String currentAssignment = null;
+
+  void interpret(Program program) {
+    prepareRainfall(program.rainfallSeries);
+    values.clear();
+    for (Stmt statement : program.statements) {
+      statement.accept(this);
+    }
+    printTables();
+  }
+
+  private void prepareRainfall(List<Double> rainfall) {
+    numberOfDays = Math.max(NUMBER_OF_DAYS, rainfall.size());
+    rainfallSeries = new double[numberOfDays];
+    for (int i = 0; i < rainfall.size(); i++) {
+      rainfallSeries[i] = rainfall.get(i);
+    }
+  }
+
+  @Override
+  public Void visitAssignStmt(Stmt.Assign stmt) {
+    currentAssignment = stmt.name.lexeme;
+    double[] result = evaluate(stmt.value);
+    values.put(stmt.name.lexeme, result);
+    currentAssignment = null;
+    return null;
+  }
+
+  private double[] evaluate(Expr expr) {
+    return expr.accept(this);
+  }
+
+  @Override
+  public double[] visitVariableExpr(Expr.Variable expr) {
+    return cloneArray(lookupSeries(expr.name.lexeme));
+  }
+
+  @Override
+  public double[] visitBinaryExpr(Expr.Binary expr) {
+    if (expr.operator.type == TokenType.PLUS) {
+      double[] left = expr.left.accept(this);
+      double[] right = expr.right.accept(this);
+      double[] result = new double[numberOfDays];
+      for (int i = 0; i < numberOfDays; i++) {
+        result[i] = left[i] + right[i];
+      }
+      return result;
+    }
+    throw new RuntimeError("Operator '" + expr.operator.lexeme + "' not supported in this context.");
+  }
+
+  @Override
+  public double[] visitWaterflowExpr(Expr.Waterflow expr) {
+    if (expr.area <= 0) {
+      throw new RuntimeError("Catchment area must be greater than zero.");
+    }
+    return computeWaterflowSeries(expr.area);
+  }
+
+  @Override
+  public double[] visitLiteralExpr(Expr.Literal expr) {
+    if (expr.value instanceof Double) {
+      return filledSeries((Double) expr.value);
+    }
+    throw new RuntimeError("Unsupported literal type: " + expr.value);
+  }
+
+  @Override
+  public double[] visitDamExpr(Expr.Dam expr) {
+    if (currentAssignment == null) {
+      throw new RuntimeError("Dam expressions must be assigned to a variable.");
+    }
+    String inflowName = currentAssignment + "_inflow";
+    double[] inflowSeries = values.get(inflowName);
+    if (inflowSeries == null) {
+      inflowSeries = new double[numberOfDays];
+    }
+
+    double initialFill = evaluateScalar(expr.init);
+    double capacity = evaluateScalar(expr.cap);
+    if (capacity <= 0) {
+      throw new RuntimeError("Dam capacity must be greater than zero.");
+    }
+    double fill = clamp(initialFill, 0.0, 1.0);
+    double[] outflow = new double[numberOfDays];
+    for (int day = 0; day < numberOfDays; day++) {
+      double inflow = inflowSeries[day];
+      double rainToday = rainfallSeries[day];
+      double multiplier = evaluateDamRules(expr.rules, day, fill, inflow, rainToday);
+      double out = inflow * multiplier;
+      outflow[day] = out;
+      double rainContribution = convertRainfallToFlow(rainToday);
+      fill = clamp(fill + (inflow + rainContribution - out) / capacity, 0.0, 1.0);
+    }
+    return outflow;
+  }
+
+  private double evaluateDamRules(Expr.DamRules rules, int day, double fill, double inflow, double rainToday) {
+    if (rules instanceof Expr.DamRules.Flow flowRule) {
+      return evaluateDamValue(flowRule.value, day, fill, inflow, rainToday);
+    }
+    Expr.DamRules.IfFlow ifFlow = (Expr.DamRules.IfFlow) rules;
+    Object condition = evaluateDamExpr(ifFlow.condition, day, fill, inflow, rainToday);
+    if (!(condition instanceof Boolean)) {
+      throw new RuntimeError("Dam rule condition must evaluate to boolean.");
+    }
+    if ((Boolean) condition) {
+      return evaluateDamValue(ifFlow.value, day, fill, inflow, rainToday);
+    }
+    return evaluateDamRules(ifFlow.elseBranch, day, fill, inflow, rainToday);
+  }
+
+  private double evaluateDamValue(Expr expr, int day, double fill, double inflow, double rainToday) {
+    Object result = evaluateDamExpr(expr, day, fill, inflow, rainToday);
+    if (!(result instanceof Double)) {
+      throw new RuntimeError("Dam rule flow value must evaluate to a number.");
+    }
+    return (Double) result;
+  }
+
+  private Object evaluateDamExpr(Expr expr, int day, double fill, double inflow, double rainToday) {
+    if (expr instanceof Expr.Literal literal) {
+      if (literal.value instanceof Double || literal.value instanceof Boolean) {
+        return literal.value;
+      }
+      throw new RuntimeError("Unsupported literal in dam rule: " + literal.value);
+    }
+    if (expr instanceof Expr.Variable variable) {
+      return lookupDamVariable(variable.name.lexeme, day, fill, inflow, rainToday);
+    }
+    if (expr instanceof Expr.Binary binary) {
+      Object left = evaluateDamExpr(binary.left, day, fill, inflow, rainToday);
+      Object right = evaluateDamExpr(binary.right, day, fill, inflow, rainToday);
+      return switch (binary.operator.type) {
+        case PLUS -> toDouble(left, binary.operator) + toDouble(right, binary.operator);
+        case GREATER -> toDouble(left, binary.operator) > toDouble(right, binary.operator);
+        default -> throw new RuntimeError("Operator '" + binary.operator.lexeme + "' not supported in dam rule.");
+      };
+    }
+    if (expr instanceof Expr.Waterflow waterflow) {
+      double[] series = computeWaterflowSeries(waterflow.area);
+      return series[day];
+    }
+    throw new RuntimeError("Unsupported expression inside dam rule.");
+  }
+
+  private Object lookupDamVariable(String name, int day, double fill, double inflow, double rainToday) {
+    switch (name) {
+      case "fill":
+        return fill;
+      case "inflow":
+        return inflow;
+      case "rain_today":
+        return rainToday;
+      default:
+        double[] series = values.get(name);
+        if (series == null) {
+          if ("rainfall".equals(name)) {
+            return rainfallSeries[day];
+          }
+          throw new RuntimeError("Undefined variable '" + name + "' in dam rule.");
+        }
+        return series[day];
+    }
+  }
+
+  private double evaluateScalar(Expr expr) {
+    Object value = evaluateDamExpr(expr, 0, 0.0, 0.0, rainfallSeries[0]);
+    if (!(value instanceof Double)) {
+      throw new RuntimeError("Expected numeric value.");
+    }
+    return (Double) value;
+  }
+
+  private double[] lookupSeries(String name) {
+    if ("rainfall".equals(name)) {
+      double[] converted = new double[numberOfDays];
+      for (int i = 0; i < numberOfDays; i++) {
+        converted[i] = convertRainfallToFlow(rainfallSeries[i]);
+      }
+      return converted;
+    }
+    double[] series = values.get(name);
+    if (series == null) {
+      throw new RuntimeError("Undefined variable '" + name + "'.");
+    }
+    return series;
+  }
+
+  private double[] cloneArray(double[] data) {
+    return Arrays.copyOf(data, data.length);
+  }
+
+  private double[] filledSeries(double value) {
+    double[] result = new double[numberOfDays];
+    Arrays.fill(result, value);
+    return result;
+  }
+
+  private double[] computeWaterflowSeries(double area) {
+    double[] flows = new double[numberOfDays];
+    double releaseFactor = 1.0 - DECAY_FACTOR;
+    for (int day = 0; day < numberOfDays; day++) {
+      double total = 0.0;
+      for (int sourceDay = 0; sourceDay <= day; sourceDay++) {
+        double rain = rainfallSeries[sourceDay];
+        double liters = rain * area;
+        double weight = releaseFactor * Math.pow(DECAY_FACTOR, day - sourceDay);
+        total += liters * weight;
+      }
+      flows[day] = total / SECONDS_PER_DAY;
+    }
+    return flows;
+  }
+
+  private double convertRainfallToFlow(double rainfallMm) {
+    return rainfallMm / SECONDS_PER_DAY;
+  }
+
+  private double clamp(double value, double min, double max) {
+    return Math.max(min, Math.min(max, value));
+  }
+
+  private double toDouble(Object value, Token operator) {
+    if (value instanceof Double d) {
+      return d;
+    }
+    throw new RuntimeError("Operand of '" + operator.lexeme + "' must be a number.");
+  }
+
+  private void printTables() {
+    String header = formatHeader();
+    System.out.println("Rainfall (mm) per day:");
+    System.out.println("----------------------");
+    System.out.println(header);
+    System.out.println(formatRow("rainfall", rainfallSeries, 1));
+    System.out.println();
+    System.out.println("Flows (L/second)");
+    System.out.println("----------------");
+    System.out.println(header);
+    for (Map.Entry<String, double[]> entry : values.entrySet()) {
+      System.out.println(formatRow(entry.getKey(), entry.getValue(), 2));
+    }
+  }
+
+  private String formatHeader() {
+    StringBuilder builder = new StringBuilder();
+    builder.append(String.format(Locale.US, "%-12s", ""));
+    for (int day = 0; day < numberOfDays; day++) {
+      builder.append(String.format(Locale.US, "%8d", day));
+    }
+    return builder.toString();
+  }
+
+  private String formatRow(String label, double[] values, int decimals) {
+    StringBuilder builder = new StringBuilder();
+    builder.append(String.format(Locale.US, "%-12s", label));
+    String format = decimals == 1 ? "%8.1f" : "%8.2f";
+    for (double value : values) {
+      builder.append(String.format(Locale.US, format, value));
+    }
+    return builder.toString();
+  }
+}
+

@@ -56,8 +56,13 @@ private static void runPrompt() throws IOException {
     }
     if (hadError) return;
 
-    AstPrinter printer = new AstPrinter();
-    System.out.println(printer.printProgram(program));
+    Interpreter interpreter = new Interpreter();
+    try {
+      interpreter.interpret(program);
+    } catch (RuntimeError error) {
+      System.err.println(error.getMessage());
+      hadError = true;
+    }
   }
 
     static void error(int line, String message) {
