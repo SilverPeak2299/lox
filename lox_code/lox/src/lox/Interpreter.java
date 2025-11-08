@@ -57,6 +57,14 @@ class Interpreter implements Expr.Visitor<double[]>, Stmt.Visitor<Void> {
   public double[] visitBinaryExpr(Expr.Binary expr) {
     if (expr.operator.type == TokenType.PLUS) {
       double[] left = expr.left.accept(this);
+      if (expr.right instanceof Expr.Dam damExpr) {
+        double[] damOut = evaluateDamWithInflow(damExpr, left);
+        double[] result = new double[numberOfDays];
+        for (int i = 0; i < numberOfDays; i++) {
+          result[i] = left[i] + damOut[i];
+        }
+        return result;
+      }
       double[] right = expr.right.accept(this);
       double[] result = new double[numberOfDays];
       for (int i = 0; i < numberOfDays; i++) {
@@ -93,9 +101,12 @@ class Interpreter implements Expr.Visitor<double[]>, Stmt.Visitor<Void> {
     if (inflowSeries == null) {
       inflowSeries = new double[numberOfDays];
     }
+    return evaluateDamWithInflow(expr, inflowSeries);
+  }
 
-    double initialFill = evaluateScalar(expr.init);
-    double capacity = evaluateScalar(expr.cap);
+  private double[] evaluateDamWithInflow(Expr.Dam damExpr, double[] inflowSeries) {
+    double initialFill = evaluateScalar(damExpr.init);
+    double capacity = evaluateScalar(damExpr.cap);
     if (capacity <= 0) {
       throw new RuntimeError("Dam capacity must be greater than zero.");
     }
@@ -104,7 +115,7 @@ class Interpreter implements Expr.Visitor<double[]>, Stmt.Visitor<Void> {
     for (int day = 0; day < numberOfDays; day++) {
       double inflow = inflowSeries[day];
       double rainToday = rainfallSeries[day];
-      double multiplier = evaluateDamRules(expr.rules, day, fill, inflow, rainToday);
+      double multiplier = evaluateDamRules(damExpr.rules, day, fill, inflow, rainToday);
       double out = inflow * multiplier;
       outflow[day] = out;
       double rainContribution = convertRainfallToFlow(rainToday);
