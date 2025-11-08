@@ -93,10 +93,11 @@ class Interpreter implements Expr.Visitor<double[]>, Stmt.Visitor<Void> {
     if (expr.operator.type == TokenType.PLUS) {
       double[] left = expr.left.accept(this);
       if (expr.right instanceof Expr.Dam damExpr) {
-        double[] damOut = evaluateDamWithInflow(damExpr, left);
+        DamComputation computation = computeDam(damExpr, left);
+        recordDam(currentAssignment, computation);
         double[] result = new double[numberOfDays];
         for (int i = 0; i < numberOfDays; i++) {
-          result[i] = left[i] + damOut[i];
+          result[i] = left[i] + computation.outflow[i];
         }
         return result;
       }
