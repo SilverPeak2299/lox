@@ -1,10 +1,14 @@
 package lox;
 
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 
 class Interpreter implements Expr.Visitor<double[]>, Stmt.Visitor<Void> {
 
@@ -262,35 +266,77 @@ class Interpreter implements Expr.Visitor<double[]>, Stmt.Visitor<Void> {
   }
 
   private void printRiverSystem(Program program) {
+    Map<String, Expr> assignments = new LinkedHashMap<>();
+    Set<String> referenced = new LinkedHashSet<>();
+
     for (Stmt stmt : program.statements) {
       if (stmt instanceof Stmt.Assign assign) {
-        System.out.println(assign.name.lexeme);
-        printExprTree(assign.value, "", true);
+        assignments.put(assign.name.lexeme, assign.value);
+        collectReferencedVars(assign.value, referenced);
       }
+    }
+
+    List<String> roots = new ArrayList<>();
+    for (String name : assignments.keySet()) {
+      if (!referenced.contains(name)) {
+        roots.add(name);
+      }
+    }
+
+    if (roots.isEmpty()) {
+      roots.addAll(assignments.keySet());
+    }
+
+    for (String root : roots) {
+      System.out.println(root);
+      Set<String> path = new HashSet<>();
+      path.add(root);
+      printExprTree(assignments.get(root), "", true, assignments, path);
     }
   }
 
-  private void printExprTree(Expr expr, String prefix, boolean isLast) {
+  private void printExprTree(
+      Expr expr,
+      String prefix,
+      boolean isLast,
+      Map<String, Expr> assignments,
+      Set<String> path) {
     String branch = isLast ? "└── " : "├── ";
     System.out.print(prefix + branch);
     String childPrefix = prefix + (isLast ? "    " : "│   ");
     if (expr instanceof Expr.Binary binary) {
       System.out.println("(" + binary.operator.lexeme + ")");
-      printExprTree(binary.left, childPrefix, false);
-      printExprTree(binary.right, childPrefix, true);
+      printExprTree(binary.left, childPrefix, false, assignments, path);
+      printExprTree(binary.right, childPrefix, true, assignments, path);
     } else if (expr instanceof Expr.Dam dam) {
       String initStr = formatDamScalar(dam.init);
       String capStr = formatDamScalar(dam.cap);
       System.out.println("dam(" + initStr + ", " + capStr + ")");
-      System.out.println(childPrefix + "└── [rules...]");
     } else if (expr instanceof Expr.Variable variable) {
       System.out.println(variable.name.lexeme);
+      Expr nested = assignments.get(variable.name.lexeme);
+      if (nested != null && path.add(variable.name.lexeme)) {
+        printExprTree(nested, childPrefix, true, assignments, path);
+        path.remove(variable.name.lexeme);
+      }
     } else if (expr instanceof Expr.Waterflow waterflow) {
       System.out.println("(waterflow area=" + waterflow.area + ")");
     } else if (expr instanceof Expr.Literal literal) {
       System.out.println(formatLiteralValue(literal.value));
     } else {
       System.out.println(expr.getClass().getSimpleName());
+    }
+  }
+
+  private void collectReferencedVars(Expr expr, Set<String> referenced) {
+    if (expr instanceof Expr.Variable variable) {
+      referenced.add(variable.name.lexeme);
+    } else if (expr instanceof Expr.Binary binary) {
+      collectReferencedVars(binary.left, referenced);
+      collectReferencedVars(binary.right, referenced);
+    } else if (expr instanceof Expr.Dam dam) {
+      collectReferencedVars(dam.init, referenced);
+      collectReferencedVars(dam.cap, referenced);
     }
   }
 
