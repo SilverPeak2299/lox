@@ -138,7 +138,15 @@ class Interpreter implements Expr.Visitor<double[]>, Stmt.Visitor<Void> {
       inflowSeries = new double[numberOfDays];
     }
     DamComputation computation = computeDam(expr, inflowSeries);
-    recordDam(currentAssignment, computation);
+    damRecords.put(
+        currentAssignment,
+        new DamRecord(
+            currentAssignment,
+            computation.initFill,
+            computation.capacity,
+            computation.inflow.clone(),
+            computation.outflow.clone(),
+            computation.fill.clone()));
     return computation.outflow;
   }
 
@@ -157,6 +165,10 @@ class Interpreter implements Expr.Visitor<double[]>, Stmt.Visitor<Void> {
       this.outflow = outflow;
       this.fill = fill;
     }
+  }
+
+  private double[] evaluateDamWithInflow(Expr.Dam damExpr, double[] inflowSeries) {
+    return computeDam(damExpr, inflowSeries).outflow;
   }
 
   private DamComputation computeDam(Expr.Dam damExpr, double[] inflowSeries) {
@@ -180,21 +192,6 @@ class Interpreter implements Expr.Visitor<double[]>, Stmt.Visitor<Void> {
       fillSeries[day] = fill;
     }
     return new DamComputation(initialFill, capacity, inflowCopy, outflow, fillSeries);
-  }
-
-  private void recordDam(String name, DamComputation computation) {
-    if (name == null) {
-      return;
-    }
-    damRecords.put(
-        name,
-        new DamRecord(
-            name,
-            computation.initFill,
-            computation.capacity,
-            computation.inflow.clone(),
-            computation.outflow.clone(),
-            computation.fill.clone()));
   }
 
   private double evaluateDamRules(Expr.DamRules rules, int day, double fill, double inflow, double rainToday) {
