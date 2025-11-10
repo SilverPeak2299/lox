@@ -257,6 +257,10 @@ class Interpreter implements Expr.Visitor<double[]>, Stmt.Visitor<Void> {
       return switch (binary.operator.type) {
         case PLUS -> toDouble(left, binary.operator) + toDouble(right, binary.operator);
         case GREATER -> toDouble(left, binary.operator) > toDouble(right, binary.operator);
+        case GREATER_EQUAL -> toDouble(left, binary.operator) >= toDouble(right, binary.operator);
+        case LESS -> toDouble(left, binary.operator) < toDouble(right, binary.operator);
+        case LESS_EQUAL -> toDouble(left, binary.operator) <= toDouble(right, binary.operator);
+        case EQUAL_EQUAL -> isEqual(left, right, binary.operator);
         default -> throw new RuntimeError("Operator '" + binary.operator.lexeme + "' not supported in dam rule.");
       };
     }
@@ -349,6 +353,17 @@ class Interpreter implements Expr.Visitor<double[]>, Stmt.Visitor<Void> {
       return d;
     }
     throw new RuntimeError("Operand of '" + operator.lexeme + "' must be a number.");
+  }
+
+  private boolean isEqual(Object left, Object right, Token operator) {
+    if (left instanceof Double l && right instanceof Double r) {
+      return Double.compare(l, r) == 0;
+    }
+    if (left instanceof Boolean l && right instanceof Boolean r) {
+      return l.equals(r);
+    }
+    throw new RuntimeError(
+        "Operands of '" + operator.lexeme + "' must be two numbers or two booleans.");
   }
 
   private void printRiverSystem(Program program) {
