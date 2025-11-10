@@ -1,17 +1,18 @@
 // 06_minimal_dam_syntax_demo.txt
-// Tiny program just to demonstrate dam syntax clearly.
+// Minimal example just to demonstrate dam syntax clearly.
 
-// single-day-style rainfall shape, still runs over your full horizon
-[10.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+[8.0, 0.0, 0.0, 0.0, 5.0, 0.0, 0.0, 3.0, 0.0, 0.0]
 
-// Simple inflow river
-r_in = (5000);
+// Simple inflow river as a catchment
+river_in = (5000);
 
-// Very simple dam rule: either high or low release depending on fill.
-demo_dam = dam(0.5, 1000,
+// Dam inflow is this river (no extra catchment here, just the river).
+
+// Very simple dam rule: more release when fill is high.
+demo_dam = river_in + dam(0.5, 1000,
   if fill > 0.6 flow 0.7 else
   flow 0.3
 );
 
 // Expose the dam outflow as a named river.
-r_out = demo_dam;
+river_out = demo_dam;

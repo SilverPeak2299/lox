@@ -1,31 +1,30 @@
-// 05_canberra_network_with_dam.txt
+// 05_network_with_dam.txt
 // Canberra-style network with a dam in the middle of the system.
-// Good "showcase" program for your quiz answer.
 
-[11.4, 0.0, 0.4, 0.0, 0.0, 2.0, 0.2, 0.2, 0.2, 0.0]
+[11.4, 0.0, 5.0, 0.0, 0.0, 12.0, 0.0, 0.0, 3.0, 9.0]
 
-// Catchment-based rivers
+// Upstream rivers as catchments
 upper_molo = (3000);
-googong_in = (6000);
 quean      = (1800);
 jerra      = (1200);
 
-// Dam on Googong branch, using a decision-list style algorithm.
-googong_dam = dam(0.3, 5000,
-  // Very full -> strong release
+// A simple upstream Googong river *before* the dam
+googong_upstream = (4000) + upper_molo;
+
+// Dam on the Googong branch with a small decision-list algorithm.
+// Inline catchment definition
+googong_dam = googong_upstream + (2000) + dam(0.3, 5000,
   if fill > 0.8 flow 0.8 else
-  // High inflow -> moderate release
   if inflow > 0.04 flow 0.5 else
-  // Rainy day -> precautionary extra release
-  if rain_today > 5.0 flow 0.6 else
-  // Otherwise -> gentle release
+  if rain_today > 8.0 flow 0.6 else
   flow 0.2
 );
 
+// Downstream Googong river is dam outflow.
 googong = googong_dam;
 
-// Central Molonglo gets water from all branches.
+// Central Molonglo: all branches combining.
 central_molo = upper_molo + googong + quean + jerra;
 
-// Lower Molonglo is downstream of central.
+// Lower Molonglo downstream.
 lower_molo = central_molo;

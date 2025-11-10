@@ -14,9 +14,10 @@ r_upper  = (3000);
 r_middle = (5000);
 r_lower  = (10000);
 
+
 // The dam sits on the middle branch.
 // Its algorithm mimics a real dam control policy with cascading rules.
-smart_dam = dam(0.45, 8000,
+smart_dam = r_middle + dam(0.45, 8000,
   // Emergency spill if too full or extremely heavy rain
   if fill > 0.9 flow 1.0 else
   if rain_today > 25 flow 0.8 else
