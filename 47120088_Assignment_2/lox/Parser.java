@@ -47,12 +47,22 @@ class Parser {
   }
 
   private Expr expr() {
-    return comparison();
+    return equality();
+  }
+
+  private Expr equality() {
+    Expr expr = comparison();
+    while (match(TokenType.EQUAL_EQUAL)) {
+      Token op = previous();
+      Expr right = comparison();
+      expr = new Expr.Binary(expr, op, right);
+    }
+    return expr;
   }
 
   private Expr comparison() {
     Expr expr = addition();
-    while (match(TokenType.GREATER)) {
+    while (match(TokenType.GREATER, TokenType.GREATER_EQUAL, TokenType.LESS, TokenType.LESS_EQUAL)) {
       Token op = previous();
       Expr right = addition();
       expr = new Expr.Binary(expr, op, right);
