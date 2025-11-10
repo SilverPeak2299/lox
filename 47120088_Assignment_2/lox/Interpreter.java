@@ -43,6 +43,7 @@ class Interpreter implements Expr.Visitor<double[]>, Stmt.Visitor<Void> {
 
   private final Map<String, double[]> values = new LinkedHashMap<>();
   private final Map<String, DamRecord> damRecords = new LinkedHashMap<>();
+  private final Map<String, Expr.Dam> damDefinitions = new LinkedHashMap<>();
   private double[] rainfallSeries;
   private int numberOfDays;
   private String currentAssignment = null;
@@ -51,6 +52,7 @@ class Interpreter implements Expr.Visitor<double[]>, Stmt.Visitor<Void> {
     prepareRainfall(program.rainfallSeries);
     values.clear();
     damRecords.clear();
+    damDefinitions.clear();
     for (Stmt statement : program.statements) {
       statement.accept(this);
     }
@@ -92,6 +94,19 @@ class Interpreter implements Expr.Visitor<double[]>, Stmt.Visitor<Void> {
   public double[] visitBinaryExpr(Expr.Binary expr) {
     if (expr.operator.type == TokenType.PLUS) {
       double[] left = expr.left.accept(this);
+      if (expr.right instanceof Expr.Variable damReference) {
+        Expr.Dam damExpr = damDefinitions.get(damReference.name.lexeme);
+        if (damExpr != null) {
+          DamComputation computation = computeDam(damExpr, left);
+          recordDam(damReference.name.lexeme, computation);
+          values.put(damReference.name.lexeme, computation.outflow.clone());
+          double[] result = new double[numberOfDays];
+          for (int i = 0; i < numberOfDays; i++) {
+            result[i] = left[i] + computation.outflow[i];
+          }
+          return result;
+        }
+      }
       if (expr.right instanceof Expr.Dam damExpr) {
         DamComputation computation = computeDam(damExpr, left);
         recordDam(currentAssignment, computation);
@@ -132,6 +147,7 @@ class Interpreter implements Expr.Visitor<double[]>, Stmt.Visitor<Void> {
     if (currentAssignment == null) {
       throw new RuntimeError("Dam expressions must be assigned to a variable.");
     }
+    damDefinitions.put(currentAssignment, expr);
     String inflowName = currentAssignment + "_inflow";
     double[] inflowSeries = values.get(inflowName);
     if (inflowSeries == null) {
