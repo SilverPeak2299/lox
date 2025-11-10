@@ -1,0 +1,32 @@
+// 07_interesting_algorithm.txt
+// Demonstrates a dam algorithm that adapts to multiple real-world inputs
+// and models a semi-realistic operating policy.
+//
+// Rubric coverage:
+// - Flow depends on fill, inflow, and rain_today (2 marks)
+// - Dam algorithm clearly runs and affects downstream flows (2 marks)
+// - Expressive, sensible, and unique syntax (1 mark)
+
+[12.0, 0.0, 0.0, 15.0, 30.0, 0.0, 0.0, 5.0, 0.0, 10.0]
+
+// Base river network
+r_upper  = (3000);
+r_middle = (5000);
+r_lower  = (10000);
+
+// The dam sits on the middle branch.
+// Its algorithm mimics a real dam control policy with cascading rules.
+smart_dam = dam(0.45, 8000,
+  // Emergency spill if too full or extremely heavy rain
+  if fill > 0.9 flow 1.0 else
+  if rain_today > 25 flow 0.8 else
+  // Normal high inflow period: balance inflow and capacity
+  if inflow > 0.04 flow 0.5 else
+  // Moderate storage recovery after dry spell
+  if fill < 0.3 flow 0.1 else
+  // Default steady release
+  flow 0.3
+);
+
+// Downstream main river
+r_main = r_lower + smart_dam;

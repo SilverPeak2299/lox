@@ -1,6 +1,0 @@
-[1]
-base = (100);
-combo = base + dam(0.5, 1000,
-  if fill > 0.7 flow 0.5 else
-  flow 0.2
-);

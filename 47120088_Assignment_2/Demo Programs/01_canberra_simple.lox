@@ -1,0 +1,20 @@
+// 01_canberra_simple_flow.txt
+// Simple Canberra-like river system with no dams.
+// Shows that the language can interpret river flows and output them.
+
+// 12 days of rainfall, same as the Canberra example in the notes.
+[11.4, 0.0, 0.4, 0.0, 0.0, 2.0, 0.2, 0.2, 0.2, 0.0]
+
+// Each river is just a catchment; the number is a made-up "area".
+// Using this keeps the flows and structure very clear.
+
+upper_molo = (3000);
+googong     = (6000);
+quean       = (1800);
+jerra       = (1200);
+
+// Central Molonglo gets water from three upstream rivers.
+central_molo = upper_molo + googong + quean + jerra;
+
+// Lower Molonglo is just downstream of central Molonglo.
+lower_molo = central_molo;

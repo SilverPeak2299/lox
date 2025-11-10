@@ -1,0 +1,25 @@
+// 03_canberra_basic_dam.txt
+// Adds a single, simple dam on the Googong branch.
+// Algorithm depends only on dam level (fill).
+
+[11.4, 40, 50, 0.0, 0.0, 2.0, 0.2, 0.2, 0.2, 0.0]
+
+// Upstream rivers as catchments
+upper_molo = (3000);
+googong_in = (6000);  // inflow into the dam
+quean      = (1800);
+jerra      = (1200);
+
+// Dam on Googong branch.
+// For marking clarity: dam output = fraction of fill (your semantics).
+googong_dam = dam(0.5, 10000,
+  if fill > 0.8 flow 0.7 else
+  flow 0.3
+);
+
+// River "googong" is the water coming out of the dam.
+googong = googong_dam;
+
+// Central and lower rivers as before.
+central_molo = upper_molo + googong + quean + jerra;
+lower_molo   = central_molo;

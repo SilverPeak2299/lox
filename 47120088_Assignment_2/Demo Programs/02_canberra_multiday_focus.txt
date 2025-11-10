@@ -1,0 +1,14 @@
+// 02_canberra_multiday_focus.txt
+// Same Canberra-style network, but with more varied rainfall
+// to emphasise multi-day behaviour and decay.
+
+// 12 days, mixing big and small events.
+[20.0, 0.0, 0.0, 10.0, 0.0, 40.0, 0.0, 0.0, 5.0, 0.0]
+
+upper_molo = (3000);
+googong     = (6000);
+quean       = (1800);
+jerra       = (1200);
+
+central_molo = upper_molo + googong + quean + jerra;
+lower_molo   = central_molo;

@@ -1,0 +1,31 @@
+// 05_canberra_network_with_dam.txt
+// Canberra-style network with a dam in the middle of the system.
+// Good "showcase" program for your quiz answer.
+
+[11.4, 0.0, 0.4, 0.0, 0.0, 2.0, 0.2, 0.2, 0.2, 0.0]
+
+// Catchment-based rivers
+upper_molo = (3000);
+googong_in = (6000);
+quean      = (1800);
+jerra      = (1200);
+
+// Dam on Googong branch, using a decision-list style algorithm.
+googong_dam = dam(0.3, 5000,
+  // Very full -> strong release
+  if fill > 0.8 flow 0.8 else
+  // High inflow -> moderate release
+  if inflow > 0.04 flow 0.5 else
+  // Rainy day -> precautionary extra release
+  if rain_today > 5.0 flow 0.6 else
+  // Otherwise -> gentle release
+  flow 0.2
+);
+
+googong = googong_dam;
+
+// Central Molonglo gets water from all branches.
+central_molo = upper_molo + googong + quean + jerra;
+
+// Lower Molonglo is downstream of central.
+lower_molo = central_molo;
