@@ -1,0 +1,5 @@
+[1]
+d1 = dam(init_fill, cap,
+  if fill > 0.7 flow 0.5 else
+  flow 0.2
+);
